@@ -6,8 +6,10 @@ import pickle
 import seaborn as sns
 import pandas as pd
 
-plt.style.use('rossidata')
-
+try:
+    plt.style.use('rossidata')
+except:
+    print('no rossi data')
 def return_mean_std(arrayo):
     stds = np.std(arrayo, axis=0)
     means = np.mean(arrayo, axis=0)
