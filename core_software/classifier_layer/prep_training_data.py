@@ -4,6 +4,7 @@ import os
 from glob import glob
 import warnings
 warnings.filterwarnings("ignore", message="PySoundFile failed. Trying audioread instead.")
+from tqdm import tqdm
 
 # prepping training data
 def mp3tomfcc(file_path, max_pad):
@@ -80,7 +81,7 @@ MSGs = []
 labels = []
 full_labels = []
 
-for file in files:
+for file in tqdm(files):
     mfccs.append(mp3tomfcc(file, 60))
     MSGs.append(mp3toMSG(file, 60))
 
@@ -98,5 +99,6 @@ mfccs, MSGs, labels, full_labels = list(zip(*sorted(zip(mfccs, MSGs, labels, ful
 np.save('../../data/all_data/mfccs.npy', mfccs)
 np.save('../../data/all_data/MSGs.npy', MSGs)
 np.save('../../data/all_data/labels.npy', labels)
+np.save('../../data/all_data/full_labels.npy', full_labels)
 
 
