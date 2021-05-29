@@ -9,6 +9,7 @@ from core_software.utils.config_params import phoneme_categories
 import time
 import pickle
 import argparse
+dirname = os.path.abspath(os.path.dirname(__file__))
 
 
 class Gauntlet:
@@ -21,7 +22,7 @@ class Gauntlet:
     def __init__(self,
                  classifier_type:str='tone',
                  data_encoding:str='MSG',
-                 model_types:list=[lstmv1,mixtv1,cnnv1],
+                 model_types:list=['lstmv1','mixtv1','cnnv1'],
                  cv_folds:int=5,
                  n_epochs:int=2,
                  out_path:str='data/output/')-> None:
@@ -40,8 +41,8 @@ class Gauntlet:
     def _load_data(self) -> None:
 
 
-        encoding_lookup={'MSG':'data/all_data/MSGs.npy',
-                         'MFCC':'data/all_data/mfccs.npy'}
+        encoding_lookup={'MSG':os.path.join(dirname,'../../data/all_data/MSGs.npy'),
+                         'MFCC':os.path.join(dirname,'../../data/all_data/mfccs.npy')}
 
         if self.data_encoding in encoding_lookup:
             encoded_data = np.asarray(np.load(encoding_lookup[self.data_encoding]).tolist())
@@ -58,7 +59,7 @@ class Gauntlet:
 
 
 
-        full_labels = np.load('data/all_data/full_labels.npy')
+        full_labels = np.load(os.path.join(dirname,'../../data/all_data/full_labels.npy'))
 
         classifier_type_lookup={'tone':self._convert_tone_labels,
                          'phoneme':self._convert_phoneme_labels}
