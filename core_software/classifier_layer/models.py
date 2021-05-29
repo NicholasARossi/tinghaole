@@ -1,4 +1,4 @@
-from keras.layers import Dense, Dropout, Flatten, Conv2D, MaxPooling2D,MaxPooling1D, BatchNormalization,LSTM,Input,Conv1D
+from keras.layers import Dense, Dropout, Flatten, Conv2D, MaxPooling2D,MaxPooling1D, BatchNormalization,LSTM,Input,Conv1D,InputLayer
 from keras.models import Sequential
 import keras
 
@@ -103,7 +103,7 @@ class mixtv1:
 
         model = Sequential()
 
-        model.add(Input(shape=(time_steps, features)))
+        model.add(InputLayer(shape=(time_steps, features)))
         model.add(Conv1D(filters=32,
                          kernel_size=3,
                          strides=1,

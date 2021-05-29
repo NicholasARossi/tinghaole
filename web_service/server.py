@@ -1,14 +1,13 @@
 
 from flask import Flask, request,jsonify
 import os
-from core_software.service_layer.prediction_service import PredictMA
+from core_software.service_layer.prediction_service import ToneClassifier
 app = Flask(__name__)
 
 
 
 @app.route("/predict",methods=["Post"])
 def predict():
-    pass
 
     # get audio file and save it
     audio_file = request.files["file"]
@@ -16,19 +15,17 @@ def predict():
     audio_file.save(file_name)
 
     # invoke ting hao le service
-    predictor=PredictMA()
-    predicted_phoneme=predictor.predict()
+    predictor=ToneClassifier()
 
     # make a prediction
+    predicted_tone=predictor.predict(file_name)
 
     # remove audio file
     os.remove(file_name)
 
     # send back the predicted tone/etc as JSON
-    data = {"keyword":predicted_phoneme}
+    data = {"tone":predicted_tone}
     return jsonify(data)
-
-
 
 if __name__ == '__main__':
     app.run(debug=False)

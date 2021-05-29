@@ -9,6 +9,8 @@ from core_software.utils.config_params import phoneme_categories
 import time
 import pickle
 import argparse
+from pathlib import Path
+
 dirname = os.path.abspath(os.path.dirname(__file__))
 
 
@@ -25,7 +27,8 @@ class Gauntlet:
                  model_types:list=['lstmv1','mixtv1','cnnv1'],
                  cv_folds:int=5,
                  n_epochs:int=2,
-                 out_path:str='data/output/')-> None:
+                 out_path:str='data/output/',
+                 save_models:bool=True)-> None:
 
         self.classifier_type = classifier_type
         self.model_types=model_types
@@ -33,6 +36,7 @@ class Gauntlet:
         self.n_epochs=n_epochs
         self.data_encoding=data_encoding
         self.out_path=out_path
+        self.save_models=save_models
 
         if not os.path.exists(self.out_path):
             os.makedirs(self.out_path)
@@ -123,6 +127,14 @@ class Gauntlet:
 
 
                 histories[f'{model_type}_{fold_count}']=history.history
+
+                if self.save_models == True:
+                    subdir_path=os.path.join(self.out_path,model_type)
+                    Path(subdir_path).mkdir(parents=True, exist_ok=True)
+
+                    model_save_loc = os.path.join(subdir_path,f'{model_type}_{fold_count}.h5')
+                    model.save(model_save_loc)
+
 
 
 
