@@ -61,7 +61,6 @@ class ToneClassifier:
 
         fully_featurized= fully_featurized.reshape((dim_0, dim_1,dim_2 ))
 
-
         return fully_featurized
 
 
