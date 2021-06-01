@@ -2,19 +2,21 @@ from glob import glob
 from keras.models import load_model
 from core_software.classifier_layer.prep_training_data import mp3toMSG,add_padding
 import numpy as np
+from pydub import AudioSegment
+import scipy
 
-class PredictMA:
 
-    def predict(self):
-        pass
+
 
 
 class ToneClassifier:
     '''
     A determanistic tone ensemble model
     '''
-    mapping_dict={0:'一声',
-                  1:'二声',2:'三声',3:'四声'}
+    mapping_dict={0:1,
+                  1:2,
+                  2:3,
+                  3:4}
 
     def __init__(self,
                  tone_dir:str = '/Users/nicholas.rossi/Documents/Personal/tinghaole/core_software/service_layer/model_storage/tone/'):
@@ -40,7 +42,7 @@ class ToneClassifier:
         # make ensemble predictions from model
         predictions=[]
         for model in self.tone_models:
-            prediction=model.predict(featurized_audio)
+            prediction=model.predict_step(featurized_audio)
             predictions.append(prediction)
 
         predicted_idx=int(np.argmax(np.mean(np.asarray(predictions), axis=0)))
@@ -65,7 +67,11 @@ class ToneClassifier:
 
 
 if __name__ == '__main__':
-    test_file='../../data/ma_data/ma1_FV1_MP3.mp3'
+
+    # TODO through warnings if : no sound, no matches, genrally bad
+    #test_file='../../data/ma_data/ma1_FV1_MP3.mp3'
+    test_file='../../data/ma_data/ma1_USER2.wav'
+
     classifier=ToneClassifier()
     prediction=classifier.predict(test_file)
     print(prediction)

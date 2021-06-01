@@ -6,15 +6,29 @@ import warnings
 warnings.filterwarnings("ignore", message="PySoundFile failed. Trying audioread instead.")
 from tqdm import tqdm
 
+
+
+def trim_leading_trailing_silence(audio):
+    trimmed_sound = librosa.effects.trim(audio, top_db=20, frame_length=256, hop_length=64)[0]
+    return trimmed_sound
+
 # prepping training data
 def mp3tomfcc(file_path):
     audio, sample_rate = librosa.core.load(file_path)
+
+
+
+
     mfcc = librosa.feature.mfcc(y=audio, sr=sample_rate, n_mfcc=60)
     return mfcc
 
 
-def mp3toMSG(file_path):
+def mp3toMSG(file_path,trimming=True):
     audio, sample_rate = librosa.core.load(file_path)
+
+    if trimming==True:
+        audio=trim_leading_trailing_silence(audio)
+
     MSG = librosa.feature.melspectrogram(y=audio, sr=sample_rate, n_fft=1024, hop_length=512, n_mels=80, fmin=75,
                                          fmax=3700)
     MSG = np.log10(MSG + 1e-10)
