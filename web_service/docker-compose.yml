@@ -2,16 +2,18 @@ version: "3.7"
 
 services:
 
-  flask:
-    build: ./flask
-    container_name: flask
+  flask_app:
+    container_name: flask_app
     restart: always
-    expose:
-      - 900
+    build: ./flask_app
+    ports:
+      - "8000:8000"
 
   nginx:
-    build: ./nginx
     container_name: nginx
     restart: always
+    build: ./nginx
     ports:
-      - "80:1234"
+      - "80:80"
+    depends_on:
+      - flask_app
