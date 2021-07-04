@@ -39,8 +39,11 @@ from sklearn.model_selection import KFold
 import logging
 from core_software.utils.config_params import phoneme_categories
 import pickle
-
+import time
 from glob import glob
+from pathlib import Path
+import keras
+
 dirname = os.path.abspath(os.path.dirname(__file__))
 
 
@@ -71,22 +74,37 @@ class Gauntlet:
         self.MSG_dir=os.path.join(self.data_dir,'MSG_chunks')
         self.Label_dir=os.path.join(self.data_dir,'Label_chunks')
 
-        self.n_data_chunks=glob(self.MSG_dir+'*.npy')
+        self.n_data_chunks=len(glob(self.MSG_dir+'/*.npy'))
 
         if not os.path.exists(self.out_path):
             os.makedirs(self.out_path)
 
+        # perform taste test
+        self.X=self._load_and_reshape(self.MSG_dir, 0)
 
-    def _load_data(self,chunk_num) -> [np.ndarray,list,int]:
+        if self.classifier_type == 'tone':
+            self.num_classes = 4
 
-        # load the MSGs for this particular chunk
-        array_target=os.path.join(self.MSG_dir, f'chunk_{chunk_num:02d}.npy')
+        elif self.classifier_type == 'phoneme':
+            self.num_classes = len(phoneme_categories)
+
+        else:
+            logging.error('Classifier Type not detected')
+
+    @staticmethod
+    def _load_and_reshape(folder,number):
+        array_target = os.path.join(folder, f'chunk_{number:02d}.npy')
         encoded_data = np.asarray(np.load(array_target).tolist())
-
 
         dim_1 = encoded_data.shape[1]
         dim_2 = encoded_data.shape[2]
         encoded_data = encoded_data.reshape((encoded_data.shape[0], dim_2, dim_1))
+        return encoded_data
+
+    def _load_data(self,chunk_num) -> [np.ndarray,list,int]:
+
+        # load the MSGs for this particular chunk
+        encoded_data = self._load_and_reshape(self.MSG_dir,chunk_num)
 
         # load labels and convert
         label_target=os.path.join(self.Label_dir, f'chunk_{chunk_num:02d}.npy')
@@ -98,9 +116,8 @@ class Gauntlet:
 
 
         encoded_labels=classifier_type_lookup[self.classifier_type](full_labels)
-        num_classes=self.y.shape[1]
 
-        return encoded_data,encoded_labels,num_classes
+        return encoded_data,encoded_labels
 
 
     def _load_assemble_test_data(self,chunk_num_list):
@@ -146,39 +163,50 @@ class Gauntlet:
 
 
         for model_type in self.model_types:
-            ### get model class
-            model_class = self.model_type_lookup[model_type](self.X, self.y, self.num_classes)
-
-            ### split K fold cross validation
-            split = KFold(n_splits=self.cv_folds, random_state=88)
+            print(f'Starting {model_type}')
+            histories = {}
+            model_class=self.model_type_lookup[model_type](self.X,self.y,self.num_classes)
 
 
-            for train_indexes, test_indexes in split.split(model_class.featurized_X, model_class.y):
+            split = KFold(n_splits=self.cv_folds)
 
-                ### intantiate model
+            split.get_n_splits(model_class.featurized_X, self.y)
+
+            fold_count=0
+            for train_idx, test_idx in split.split(np.arange(self.n_data_chunks)):
+                start = time.time()
+
+                print(f'Starting fold: {fold_count+1}/{self.cv_folds}')
                 model = model_class.get_model()
 
-                for e in range(self.n_epochs):
 
 
-                    for train_index in train_indexes:
+                history = model.fit_generator(X_train, y_train, epochs=self.n_epochs, verbose=0, validation_data=(X_test, y_test))
+                y_pred=model.predict(X_test)
 
-
-                        ### load data
-
-                        encoded_data,encoded_labels,num_classes=self._load_data(train_index)
-
-
-
-                        history = model.fit(encoded_data, encoded_labels, batch_size=8, validation_split=0.0, epochs=1, verbose=1)
+                history.history.update({'y_pred':y_pred,
+                                 'y_pred_labels':np.argmax(y_pred, axis=1),
+                                 'y_true_labels':np.argmax(y_test, axis=1),
+                                        'time':time.time()-start})
 
 
 
-                    ### test on holdout set
-                    data,labels=self._load_assemble_test_data(test_indexes)
+                histories[f'{model_type}_{fold_count}']=history.history
+
+                if self.save_models == True:
+                    subdir_path=os.path.join(self.out_path,model_type)
+                    Path(subdir_path).mkdir(parents=True, exist_ok=True)
+
+                    model_save_loc = os.path.join(subdir_path,f'{model_type}_{fold_count}.h5')
+                    model.save(model_save_loc)
 
 
 
+
+
+                fold_count+=1
+
+            self._serializing_outputs(histories,model_type)
 
     def _serializing_outputs(self,histories,model_label):
 
@@ -226,24 +254,48 @@ class Gauntlet:
         plot_multiple_confusion_matrixes(all_serialized_outputs,cm_label_encodings[self.classifier_type],out_target=self.out_path+f'cm_plots.png')
 
 
-
-
-
     def run(self):
-        self._load_data()
         self._train_models()
-        self._plotting()
 
+
+class DataGenerator(keras.utils.Sequence):
+    def __init__(self, df, x_col, y_col=None, batch_size=32, num_classes=None, shuffle=True):
+        self.batch_size = batch_size
+        self.df = dataframe
+        self.indices = self.df.index.tolist()
+        self.num_classes = num_classes
+        self.shuffle = shuffle
+        self.x_col = x_col
+        self.y_col = y_col
+        self.on_epoch_end()
+
+    def __len__(self):
+        return len(self.indices) // self.batch_size)
+
+        def __getitem__(self, index):
+            index = self.index[index * self.batch_size:(index + 1) * self.batch_size]
+            batch = [self.indices[k] for k in index]
+
+            X, y = self.__get_data(batch)
+            return X, y
+
+        def on_epoch_end(self):
+            self.index = np.arange(len(self.indices))
+            if self.shuffle == True:
+                np.random.shuffle(self.index)
+
+        def __get_data(self, batch):
+            X =  # logic
+            y =  # logic
+
+            for i, id in enumerate(batch):
+                X[i,] =  # logic
+                y[i] =  # labels
+
+            return X, y
 
 if __name__ == '__main__':
-    tournament = Gauntlet(
-            classifier_type=args.classifier_type,
-            data_encoding=args.data_encoding,
-            model_types=args.model_types,
-            out_path=args.out_path,
-            cv_folds=args.cv_folds,
-            n_epochs=args.n_epochs
-        )
+    tournament = Gauntlet()
     tournament.run()
 
 # if __name__ == "__main__":

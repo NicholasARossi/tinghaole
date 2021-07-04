@@ -24,7 +24,7 @@ class Gauntlet:
     def __init__(self,
                  classifier_type:str='tone',
                  data_encoding:str='MSG',
-                 model_types:list=['lstmv1','mixtv1','cnnv1'],
+                 model_types:list=['lstmv1'],
                  cv_folds:int=5,
                  n_epochs:int=2,
                  out_path:str='data/output/',
