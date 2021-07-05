@@ -1,0 +1,9 @@
+Keras==2.4.3
+Flask-Cors==3.0.10
+Flask==2.0.1
+numpy==1.19.5
+librosa==0.8.0
+gunicorn==20.1.0
+requests==2.25.1
+tensorflow==2.4.1
+uWSGI==2.0.18
