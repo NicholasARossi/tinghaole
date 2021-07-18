@@ -2,7 +2,9 @@ from glob import glob
 from keras.models import load_model
 import numpy as np
 import librosa
-
+import os
+import logging
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 def trim_leading_trailing_silence(audio):
@@ -56,16 +58,23 @@ class ToneClassifier:
                   3:4}
 
     def __init__(self,
-                 tone_dir:str = './tone_model/'):
+                 tone_dir:str ='./model_storage/tone/'):
 
 
         ### instantiate models
-        self.tone_models=self._instantiate_models(tone_dir)
+        script_dir = os.path.dirname(__file__)
+        self.tone_models=self._instantiate_models( os.path.join(script_dir, tone_dir))
 
 
     def _instantiate_models(self,model_dir) -> list:
         models=[]
-        for model_loc in glob(model_dir+'*.h5'):
+
+        model_targets=glob(model_dir+'/*.h5')
+
+        if len(model_targets)!=5:
+                logging.error(f'Incorrect number of models loaded {len(model_targets)}')
+
+        for model_loc in model_targets:
             model = load_model(model_loc)
             models.append(model)
         return models

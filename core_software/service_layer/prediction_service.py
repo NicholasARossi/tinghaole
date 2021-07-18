@@ -2,6 +2,8 @@ from glob import glob
 from keras.models import load_model
 from core_software.classifier_layer.prep_training_data import mp3toMSG,add_padding
 import numpy as np
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from pydub import AudioSegment
 import scipy
 

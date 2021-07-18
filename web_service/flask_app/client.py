@@ -1,9 +1,9 @@
 import requests
 
-URL = "https://predictor.tinghaole.com/predict"
+#URL = "https://predictor.tinghaole.com/predict"
 
 
-#URL = "http://35.162.35.198/predict"
+URL = "http://127.0.0.1/predict"
 #URL = "http://tinghaole-balancer-536317995.us-west-2.elb.amazonaws.com/predict"
 
 
