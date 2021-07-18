@@ -1,7 +1,10 @@
 import requests
 
-URL = "https://54.160.123.17/predict"
-#URL = "http://0.0.0.0:8000/predict"
+URL = "https://predictor.tinghaole.com/predict"
+
+
+#URL = "http://35.162.35.198/predict"
+#URL = "http://tinghaole-balancer-536317995.us-west-2.elb.amazonaws.com/predict"
 
 
 #URL = "asdfasd:5-0"
