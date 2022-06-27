@@ -1,11 +1,11 @@
-from pytorch_core_software.utils.data_utils import get_datasets,get_date,get_callbacks
+from pytorch_core_software.utils.data_utils import get_datasets,get_date,get_callbacks,log_to_file,save_predictions
 from pytorch_core_software.core_pytorch.modules import CnnModule, DataModule
 import pytorch_lightning as pl
 import argparse
 import pickle
 import os
 
-PATIENCE = 100
+PATIENCE = 1
 
 
 def main(args):
@@ -59,14 +59,12 @@ def main(args):
     trainer.fit(module, datamodule)
     test_metrics = trainer.test(datamodule=datamodule)
     log_to_file(test_metrics, checkpoint_save_folder, 'test_metrics.txt')
-    #
-    prediction_results = trainer.predict(module, datamodule)
-    #
-    # with open('predictions_results.pkl', 'wb') as f:
-    #     pickle.dump(prediction_results, f)
 
-    pass
-    # return test_metrics
+    prediction_results = trainer.predict(module, datamodule)
+
+    save_predictions(checkpoint_save_folder,prediction_results)
+
+
 
 
 if __name__ == '__main__':

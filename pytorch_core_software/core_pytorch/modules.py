@@ -5,15 +5,17 @@ import pytorch_lightning as pl
 import librosa
 from torchmetrics.classification.stat_scores import StatScores
 import warnings
-warnings.filterwarnings(action='ignore',  module='librosa')
+
+warnings.filterwarnings(action='ignore', module='librosa')
+
 
 class DataSet(torch.utils.data.Dataset):
     DATA_MAX_DIMS = (80, 60)
-    def __init__(self, df,data_type = 'msg'):
-        self.data_locs = df['absolute_file_path']
-        self.labels = df['target_feature'] -1
-        self.data_type = data_type
 
+    def __init__(self, df, data_type='msg'):
+        self.data_locs = df['absolute_file_path']
+        self.labels = df['target_feature'] - 1
+        self.data_type = data_type
 
     def __len__(self):
         return len(self.data_locs)
@@ -27,7 +29,7 @@ class DataSet(torch.utils.data.Dataset):
         else:
             raise ValueError(f"Invalid datatype conversion. {self.data_type} not supported")
 
-        #todo check that this is the right type for classification
+        # todo check that this is the right type for classification
         return {'x': torch.from_numpy(spectrogram).type('torch.FloatTensor'),
                 'y': torch.from_numpy(np.asarray(label)).type('torch.LongTensor')}
 
@@ -43,7 +45,7 @@ class DataSet(torch.utils.data.Dataset):
         mfcc = librosa.feature.mfcc(y=audio, sr=sample_rate, n_mfcc=60)
         return mfcc
 
-    def mp3toMSG(self,file_path, trimming=True)-> np.ndarray:
+    def mp3toMSG(self, file_path, trimming=True) -> np.ndarray:
         """
         This method coverts to mels spectrogram
 
@@ -65,16 +67,14 @@ class DataSet(torch.utils.data.Dataset):
         return padded_data
 
     @staticmethod
-    def add_padding(array, bonus_padding=10,maxes=None):
+    def add_padding(array, bonus_padding=10, maxes=None):
 
-        max_height,max_width=maxes[0],maxes[1]
-
+        max_height, max_width = maxes[0], maxes[1]
 
         pad_width = (max_width - array.shape[1]) + bonus_padding
         pad_height = (max_height - array.shape[0]) + bonus_padding
 
         new_array = np.pad(array, pad_width=((bonus_padding, pad_height), (bonus_padding, pad_width)), mode='constant')
-
 
         return new_array
 
@@ -121,7 +121,6 @@ class DataModule(pl.LightningDataModule):
                                            pin_memory=self.pin_memory)
 
 
-
 class CnnModule(pl.LightningModule):
     def __init__(self, cuda,
                  dropout=0.5,
@@ -130,20 +129,17 @@ class CnnModule(pl.LightningModule):
                  model_type='Tone'):
 
         super().__init__()
-        self.cnv1 = nn.Conv2d(1,32, 2, padding='same')
+        self.cnv1 = nn.Conv2d(1, 32, 2, padding='same')
         self.bn1 = nn.BatchNorm2d(32)
         self.relu = nn.ReLU()
         self.mxpool = nn.MaxPool2d(4)
         self.dropout1 = nn.Dropout(p=0.5)
 
-        self.cnv2 = nn.Conv2d(32,32, 4, padding='same')
+        self.cnv2 = nn.Conv2d(32, 32, 4, padding='same')
         self.maxpool2 = nn.MaxPool2d(4)
         self.dropout2 = nn.Dropout(p=0.5)
 
-
         self.flatten = nn.Flatten()
-
-
 
         # self.cnv = nn.Conv2d(1, 64, kernel_size1, padding='same')
         self.lr = lr
@@ -151,20 +147,19 @@ class CnnModule(pl.LightningModule):
 
         self.fc1 = nn.Linear(640, 64)
         self.fc2 = nn.Linear(64, 64)
-        self.fc_tone = nn.Linear(64,4)
-        self.fc_phoneme = nn.Linear(64,100)
+        self.fc_tone = nn.Linear(64, 4)
+        self.fc_phoneme = nn.Linear(64, 100)
 
         self.model_type = model_type
 
         self.stats_scores = StatScores(num_classes=4, multiclass=True)
 
-
-
-
     def loss_fn(self, out, target):
+        # one hot encoded
 
-         return nn.CrossEntropyLoss()(input=out, target=target)
 
+
+        return nn.CrossEntropyLoss()(input=out, target=target)
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr)
@@ -186,7 +181,6 @@ class CnnModule(pl.LightningModule):
         return [optimizer], [scheduler]
 
     def forward(self, x, predict=False):
-
 
         # first layer of convolutions
         out = self.bn1(self.relu(self.cnv1(x)))
@@ -220,7 +214,7 @@ class CnnModule(pl.LightningModule):
         inputs = batch["x"]
         labels = batch["y"]
 
-        predictions = self.forward(inputs).squeeze()
+        predictions = self.forward(inputs)
         output_loss = self.loss_fn(predictions, labels)
         logs = {f'loss/{prefix}_loss': output_loss}
         self.log_dict(logs)
@@ -229,7 +223,6 @@ class CnnModule(pl.LightningModule):
         if prefix != "train":
             _, y_pred_tags = torch.max(predictions, dim=1)
             self.stats_scores.update(y_pred_tags, labels)
-
 
         return output_loss
 
@@ -247,7 +240,6 @@ class CnnModule(pl.LightningModule):
         labels = batch["y"]
 
         predictions = self.forward(dna_input_ids).squeeze()
-        predictions = self.sig(predictions)
         return predictions, labels
 
     def training_epoch_end(self, outputs):
@@ -287,7 +279,6 @@ class CnnModule(pl.LightningModule):
             f'{prefix}/recall_0': recall_0,
             f'{prefix}/f1_0': f1_0
         }
-
 
         self.log_dict(metric_dict, prog_bar=True, on_epoch=on_epoch)
 
