@@ -122,8 +122,7 @@ class DataModule(pl.LightningDataModule):
 
 
 class CnnModule(pl.LightningModule):
-    def __init__(self, cuda,
-                 dropout=0.5,
+    def __init__(self,
                  lr=1e-3,
                  patience=20,
                  model_type='Tone'):
