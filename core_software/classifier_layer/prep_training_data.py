@@ -152,5 +152,5 @@ def add_padding(arrays, bonus_padding=10,maxes=None):
 
 
 if __name__ == '__main__':
-    augmentation_engine=AugmentedDataGenerator('../../data/tone_perfect_mp3/')
+    augmentation_engine=AugmentedDataGenerator('/Users/nicholas.rossi/Documents/Personal/tinghaole/data/tone_perfect_mp3/')
     augmentation_engine.run_agumentation()

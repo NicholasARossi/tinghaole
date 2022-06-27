@@ -4,12 +4,14 @@ import numpy as np
 import pytorch_lightning as pl
 import librosa
 from torchmetrics.classification.stat_scores import StatScores
+import warnings
+warnings.filterwarnings(action='ignore',  module='librosa')
 
 class DataSet(torch.utils.data.Dataset):
     DATA_MAX_DIMS = (80, 60)
     def __init__(self, df,data_type = 'msg'):
         self.data_locs = df['absolute_file_path']
-        self.labels = df['target_feature']
+        self.labels = df['target_feature'] -1
         self.data_type = data_type
 
 
@@ -21,12 +23,13 @@ class DataSet(torch.utils.data.Dataset):
         label = self.labels.iloc[idx]
         if self.data_type == 'msg':
             spectrogram = self.mp3toMSG(self.data_locs.iloc[idx])
+            spectrogram = np.expand_dims(spectrogram, axis=0)
         else:
             raise ValueError(f"Invalid datatype conversion. {self.data_type} not supported")
 
         #todo check that this is the right type for classification
-        return {'x': label.type('torch.IntTensor'),
-                'y': torch.from_numpy(spectrogram).type('torch.FloatTensor')}
+        return {'x': torch.from_numpy(spectrogram).type('torch.FloatTensor'),
+                'y': torch.from_numpy(np.asarray(label)).type('torch.LongTensor')}
 
     @staticmethod
     def mp3tomfcc(file_path):
@@ -59,7 +62,7 @@ class DataSet(torch.utils.data.Dataset):
 
         padded_data = self.add_padding(MSG, bonus_padding=2, maxes=self.DATA_MAX_DIMS)
 
-        return MSG
+        return padded_data
 
     @staticmethod
     def add_padding(array, bonus_padding=10,maxes=None):
@@ -127,22 +130,29 @@ class CnnModule(pl.LightningModule):
                  model_type='Tone'):
 
         super().__init__()
-        kernel_size1 = (2, 2)
-        self.cnv1 = nn.Conv2d(32, 32, kernel_size1, padding='same')
+        self.cnv1 = nn.Conv2d(1,32, 2, padding='same')
         self.bn1 = nn.BatchNorm2d(32)
-        self.rel = nn.ReLU()
+        self.relu = nn.ReLU()
         self.mxpool = nn.MaxPool2d(4)
+        self.dropout1 = nn.Dropout(p=0.5)
 
-        self.cnv = nn.Conv2d(1, 64, kernel_size1, padding='same')
-        self.flat = nn.Flatten()
-        self.dropout = nn.Dropout(p=dropout)
+        self.cnv2 = nn.Conv2d(32,32, 4, padding='same')
+        self.maxpool2 = nn.MaxPool2d(4)
+        self.dropout2 = nn.Dropout(p=0.5)
+
+
+        self.flatten = nn.Flatten()
+
+
+
+        # self.cnv = nn.Conv2d(1, 64, kernel_size1, padding='same')
         self.lr = lr
         self.patience = patience
 
-        self.fc1 = nn.Linear(12800, 64)
+        self.fc1 = nn.Linear(640, 64)
         self.fc2 = nn.Linear(64, 64)
-        self.fc_tone = nn.Softmax(4)
-        self.fc_phoneme = nn.Softmax(100)
+        self.fc_tone = nn.Linear(64,4)
+        self.fc_phoneme = nn.Linear(64,100)
 
         self.model_type = model_type
 
@@ -152,7 +162,8 @@ class CnnModule(pl.LightningModule):
 
 
     def loss_fn(self, out, target):
-         return nn.CrossEntropyLoss()(out, target)
+
+         return nn.CrossEntropyLoss()(input=out, target=target)
 
 
     def configure_optimizers(self):
@@ -176,51 +187,48 @@ class CnnModule(pl.LightningModule):
 
     def forward(self, x, predict=False):
 
-        """
-        previous CNN architecture
-                model.add(Conv2D(32, kernel_size=(2, 2), activation='relu', input_shape=self.input_shape))
-        model.add(BatchNormalization())
-        model.add(Conv2D(48, kernel_size=(2, 2), activation='relu'))
-        model.add(BatchNormalization())
-        model.add(Conv2D(120, kernel_size=(2, 2), activation='relu'))
-        model.add(BatchNormalization())
-        model.add(MaxPooling2D(pool_size=(2, 2)))
-        model.add(Dropout(0.25))
-        model.add(Flatten())
-        model.add(Dense(128, activation='relu'))
-        model.add(Dropout(0.25))
-        model.add(Dense(64, activation='relu'))
-        model.add(Dropout(0.4))
-        """
-        out = self.bn1(self.rel(self.cnv1(x)))
-        out = self.flat(self.mxpool(out))
-        out = self.rel(self.fc1(out))
-        out = self.dropout(out)
-        out = self.rel(self.fc2(out))
-        if self.model_type == 'tone':
+
+        # first layer of convolutions
+        out = self.bn1(self.relu(self.cnv1(x)))
+        out = self.mxpool(out)
+        out = self.dropout1(out)
+
+        # Second layer of convolutions
+        out = self.bn1(self.relu(self.cnv2(out)))
+        out = self.maxpool2(out)
+        out = self.dropout2(out)
+
+        # flatten
+        out = self.flatten(out)
+
+        # fully connected layers
+        out = self.fc1(out)
+        out = self.fc2(out)
+
+        if self.model_type == 'Tone':
             out = self.fc_tone(out)
+
         else:
             raise ValueError(f"{self.model_type} not supported")
+
+        # multiclass softmax
+        out = torch.softmax(out, axis=1)
 
         return out
 
     def _step(self, batch, prefix):
-        dna_input_ids = batch["x"]
+        inputs = batch["x"]
         labels = batch["y"]
 
-        predictions = self.forward(dna_input_ids).squeeze()
-
+        predictions = self.forward(inputs).squeeze()
         output_loss = self.loss_fn(predictions, labels)
         logs = {f'loss/{prefix}_loss': output_loss}
         self.log_dict(logs)
 
         # update metrics
         if prefix != "train":
-            # becasue we're using BCE with logits we need to add a sig here, we didn't add it before
-            preds = self.sig(predictions)
-            preds = (preds >= 0.5).type(torch.bool)
-            labels = labels.type(torch.bool)
-            self.stats_scores.update(preds, labels)
+            _, y_pred_tags = torch.max(predictions, dim=1)
+            self.stats_scores.update(y_pred_tags, labels)
 
 
         return output_loss
