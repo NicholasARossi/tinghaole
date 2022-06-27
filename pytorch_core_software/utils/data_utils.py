@@ -4,17 +4,41 @@ import pandas as pd
 import numpy as np
 import logging
 import pytz
+import pathlib
+import os
 from datetime import datetime
-
+import pickle
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(name)s %(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
+
+
+def save_predictions(folder, prediction_results):
+    prediction_name = f'{get_date()}_predictions_results.pkl'
+    full_path = os.path.join(folder, prediction_name)
+    with open(full_path, 'wb') as f:
+        pickle.dump(prediction_results, f)
+
+
+def log_to_file(args, folder, filename):
+    p = pathlib.Path(folder)
+    p.mkdir(parents=True, exist_ok=True)
+    with open(os.path.join(folder, filename), 'w') as f:
+        if isinstance(args, list):
+            for item in args:
+                f.write(f"{item}\n")
+        else:
+            json.dumps(args.__dict__, f, indent=3)
+
+    return
+
 
 def get_date():
     date_format = '%m-%d-%Y'
     tz = pytz.timezone('US/Pacific')
     curr_date = datetime.now(tz).strftime(date_format)
     return curr_date
+
 
 def get_datasets(input_sheet, target_feature='tone'):
     df = pd.read_csv(input_sheet)
@@ -26,8 +50,8 @@ def get_datasets(input_sheet, target_feature='tone'):
 
     select_all_data_df = df[['absolute_file_path', target_feature]].rename(columns={target_feature: 'target_feature'})
 
-    df_train, df_remainder = train_test_split(select_all_data_df,test_size=0.3)
-    df_test, df_val = train_test_split(df_remainder,test_size=0.3)
+    df_train, df_remainder = train_test_split(select_all_data_df, test_size=0.3)
+    df_test, df_val = train_test_split(df_remainder, test_size=0.3)
 
     logger.info(f'Training data size : {len(df_train)}')
     logger.info(f'Testing data size : {len(df_test)}')
@@ -38,10 +62,8 @@ def get_datasets(input_sheet, target_feature='tone'):
 def get_callbacks(checkpoint_save_folder, patience):
     lr_monitor = LearningRateMonitor(logging_interval='step')
 
-
     monitor_val = 'val/f1_0'
     mode = 'max'
-
 
     checkpoint_val_MSE = ModelCheckpoint(
         monitor=monitor_val,
