@@ -4,8 +4,8 @@ import pytorch_lightning as pl
 import argparse
 import pickle
 import os
-
-PATIENCE = 1
+import torch
+PATIENCE = 10
 
 
 def main(args):
@@ -26,9 +26,9 @@ def main(args):
     #
     if args.num_gpus == 0:
     # no GPU signifies debugging mode
-        module = module(cuda=False)
+        module = module()
 
-        trainer = pl.Trainer(callbacks=[checkpoint_val, early_stopping_callback, lr_monitor])
+        trainer = pl.Trainer()
         n_workers = 0
 
         datamodule = DataModule(df_train,
@@ -41,7 +41,7 @@ def main(args):
 
 
     else:
-        module = module(cuda=True)
+        module = module()
 
         trainer = pl.Trainer(gpus=args.num_gpus,
                              auto_select_gpus=True,
@@ -67,6 +67,11 @@ def main(args):
     log_to_file(test_metrics, checkpoint_save_folder, 'test_metrics.txt')
 
     prediction_results = trainer.predict(module, datamodule)
+
+
+    # determine predicted classes
+    for (pred,real) in prediction_results:
+        print(torch.argmax(pred))
 
     save_predictions(checkpoint_save_folder,prediction_results)
 

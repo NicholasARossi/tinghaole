@@ -16,6 +16,8 @@ class DataSet(torch.utils.data.Dataset):
         self.data_locs = df['absolute_file_path']
         self.labels = df['target_feature'] - 1
         self.data_type = data_type
+        self.cache_encodings = True
+        self.encoding_lookup = {}
 
     def __len__(self):
         return len(self.data_locs)
@@ -24,8 +26,14 @@ class DataSet(torch.utils.data.Dataset):
 
         label = self.labels.iloc[idx]
         if self.data_type == 'msg':
-            spectrogram = self.mp3toMSG(self.data_locs.iloc[idx])
-            spectrogram = np.expand_dims(spectrogram, axis=0)
+            if self.data_locs.iloc[idx] in self.encoding_lookup:
+                spectrogram = self.encoding_lookup[self.data_locs.iloc[idx]]
+            else:
+                spectrogram = self.mp3toMSG(self.data_locs.iloc[idx])
+
+                spectrogram = np.expand_dims(spectrogram, axis=0)
+                if self.cache_encodings:
+                    self.encoding_lookup[self.data_locs.iloc[idx]] = spectrogram
         else:
             raise ValueError(f"Invalid datatype conversion. {self.data_type} not supported")
 
@@ -55,12 +63,15 @@ class DataSet(torch.utils.data.Dataset):
         """
         audio, sample_rate = librosa.core.load(file_path)
 
-        if trimming == True:
-            audio = librosa.effects.trim(audio, top_db=20, frame_length=256, hop_length=64)[0]
+        # if trimming == True:
+        #     audio = librosa.effects.trim(audio, top_db=20, frame_length=256, hop_length=64)[0]
 
         MSG = librosa.feature.melspectrogram(y=audio, sr=sample_rate, n_fft=1024, hop_length=512, n_mels=80, fmin=75,
                                              fmax=3700)
         MSG = np.log10(MSG + 1e-10)
+
+        # normalize
+        MSG = (MSG - np.min(MSG)) / np.ptp(MSG)
 
         padded_data = self.add_padding(MSG, bonus_padding=2, maxes=self.DATA_MAX_DIMS)
 
@@ -134,9 +145,13 @@ class CnnModule(pl.LightningModule):
         self.mxpool = nn.MaxPool2d(4)
         self.dropout1 = nn.Dropout(p=0.5)
 
-        self.cnv2 = nn.Conv2d(32, 32, 4, padding='same')
+        self.cnv2 = nn.Conv2d(32, 48, 2, padding='same')
+        self.bn2 = nn.BatchNorm2d(48)
+
         self.maxpool2 = nn.MaxPool2d(4)
         self.dropout2 = nn.Dropout(p=0.5)
+        self.cnv3 = nn.Conv2d(48, 120, 2, padding='same')
+        self.bn3 = nn.BatchNorm2d(120)
 
         self.flatten = nn.Flatten()
 
@@ -144,17 +159,16 @@ class CnnModule(pl.LightningModule):
         self.lr = lr
         self.patience = patience
 
-        self.fc1 = nn.Linear(640, 64)
+        self.fc1 = nn.Linear(40320, 64)
         self.fc2 = nn.Linear(64, 64)
         self.fc_tone = nn.Linear(64, 4)
         self.fc_phoneme = nn.Linear(64, 100)
 
         self.model_type = model_type
 
-        self.stats_scores = StatScores(num_classes=4, multiclass=True)
+        self.stats_scores = StatScores(num_classes=4, multiclass=False)
 
     def loss_fn(self, out, target):
-        # one hot encoded
 
 
 
@@ -183,14 +197,13 @@ class CnnModule(pl.LightningModule):
 
         # first layer of convolutions
         out = self.bn1(self.relu(self.cnv1(x)))
-        out = self.mxpool(out)
-        out = self.dropout1(out)
-
         # Second layer of convolutions
-        out = self.bn1(self.relu(self.cnv2(out)))
-        out = self.maxpool2(out)
-        out = self.dropout2(out)
+        out = self.bn2(self.relu(self.cnv2(out)))
+        # Third layer of convolutions
+        out = self.bn3(self.relu(self.cnv3(out)))
 
+        # max pool
+        out = self.maxpool2(out)
         # flatten
         out = self.flatten(out)
 

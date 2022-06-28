@@ -8,6 +8,7 @@ import pathlib
 import os
 from datetime import datetime
 import pickle
+from collections import Counter
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(name)s %(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
@@ -50,13 +51,24 @@ def get_datasets(input_sheet, target_feature='tone'):
 
     select_all_data_df = df[['absolute_file_path', target_feature]].rename(columns={target_feature: 'target_feature'})
 
-    df_train, df_remainder = train_test_split(select_all_data_df, test_size=0.3)
-    df_test, df_val = train_test_split(df_remainder, test_size=0.3)
+
+
+    df_train, df_remainder = train_test_split(select_all_data_df, test_size=0.5,stratify = select_all_data_df[['target_feature']])
+    df_test, df_val = train_test_split(df_remainder, test_size=0.5,stratify = df_remainder[['target_feature']])
 
     logger.info(f'Training data size : {len(df_train)}')
     logger.info(f'Testing data size : {len(df_test)}')
     logger.info(f'Validation data size : {len(df_val)}')
+
+    logger.info(f'N unique classes in Training data : {len(df_train.target_feature.unique())}')
+    logger.info(f'balance of training data : {Counter(df_train.target_feature)}')
+
+    logger.info(f'N unique classes in Testing data : {len(df_test.target_feature.unique())}')
+    logger.info(f'N unique classes in validation data : {len(df_val.target_feature.unique())}')
+
     return df_train, df_test, df_val
+
+
 
 
 def get_callbacks(checkpoint_save_folder, patience):
