@@ -1,11 +1,11 @@
 from pytorch_core_software.utils.data_utils import get_datasets,get_date,get_callbacks,log_to_file,save_predictions
-from pytorch_core_software.core_pytorch.modules import CnnModule, DataModule
+from pytorch_core_software.core_pytorch.modules import CnnModule, DataModule, LstmModule
 import pytorch_lightning as pl
 import argparse
 import pickle
 import os
 import torch
-PATIENCE = 10
+PATIENCE = 100
 
 
 def main(args):
@@ -20,7 +20,8 @@ def main(args):
                                                                           patience=PATIENCE)
     #
     # # determine module
-    model_dict = {'cnn': CnnModule}
+    model_dict = {'cnn': CnnModule,
+                  'lstm' : LstmModule}
     #
     module = model_dict[args.model_type]
     #
@@ -28,15 +29,16 @@ def main(args):
     # no GPU signifies debugging mode
         module = module()
 
-        trainer = pl.Trainer()
-        n_workers = 0
+        trainer = pl.Trainer(log_every_n_steps=1,callbacks=[checkpoint_val, early_stopping_callback, lr_monitor])
+        n_workers = 6
 
         datamodule = DataModule(df_train,
                                 df_test,
                                 df_val,
                                 batch_size=args.batch_size,
                                 n_workers=n_workers,
-                                data_type=args.data_type)
+                                data_type=args.data_type,
+                                model_type=args.model_type)
 
 
 
@@ -56,7 +58,8 @@ def main(args):
                                 df_val,
                                 batch_size=args.batch_size,
                                 n_workers=n_workers,
-                                data_type=args.data_type)
+                                data_type=args.data_type,
+                                model_type=args.model_type)
 
 
 
