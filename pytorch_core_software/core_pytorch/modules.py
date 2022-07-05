@@ -4,6 +4,8 @@ import numpy as np
 import pytorch_lightning as pl
 import librosa
 from torchmetrics.classification.stat_scores import StatScores
+from transformers import AutoFeatureExtractor,AutoModelForPreTraining
+
 import warnings
 
 warnings.filterwarnings(action='ignore', module='librosa')
@@ -19,6 +21,8 @@ class DataSet(torch.utils.data.Dataset):
         self.cache_encodings = True
         self.encoding_lookup = {}
         self.model_type = model_type
+        if model_type == 'transformer':
+            self.feature_extractor = AutoFeatureExtractor.from_pretrained("facebook/wav2vec2-base")
 
     def __len__(self):
         return len(self.data_locs)
@@ -37,12 +41,27 @@ class DataSet(torch.utils.data.Dataset):
                     spectrogram = np.expand_dims(spectrogram, axis=0)
                 if self.cache_encodings:
                     self.encoding_lookup[self.data_locs.iloc[idx]] = spectrogram
+
+            return {'x': torch.from_numpy(spectrogram).type('torch.FloatTensor'),
+                    'y': torch.from_numpy(np.asarray(label)).type('torch.LongTensor')}
+        elif self.data_type == 'transform_array':
+            audio, sample_rate = librosa.core.load(self.data_locs.iloc[idx])
+            audio_resampled = librosa.resample(audio, orig_sr=sample_rate, target_sr=self.feature_extractor.sampling_rate)
+            inputs = self.feature_extractor(
+                audio_resampled, sampling_rate=self.feature_extractor.sampling_rate, max_length=16000, truncation=True,
+            )
+            filled_array = np.zeros((16000,))
+            values = inputs['input_values'][0]
+            filled_array[0:len(values)] = values
+
+
+            return {'x': filled_array,
+                    'y': torch.from_numpy(np.asarray(label)).type('torch.LongTensor')}
         else:
             raise ValueError(f"Invalid datatype conversion. {self.data_type} not supported")
 
         # todo check that this is the right type for classification
-        return {'x': torch.from_numpy(spectrogram).type('torch.FloatTensor'),
-                'y': torch.from_numpy(np.asarray(label)).type('torch.LongTensor')}
+
 
     @staticmethod
     def mp3tomfcc(file_path):
@@ -337,4 +356,23 @@ class CnnLstmModule(CnnModule):
 
 
 class AudioTransformer(CnnModule):
-    pass
+    def __init__(self,
+                 lr=1e-3,
+                 patience=20):
+        super().__init__(lr=lr,
+                         patience=patience)
+        self.transformer_block = AutoModelForPreTraining.from_pretrained("facebook/wav2vec2-base")
+
+    def forward(self, x, predict=False):
+        out = self.transformer_block(input_values={'intput_values':x})
+
+        if self.target_feature == 'Tone':
+            out = self.fc_tone(out)
+
+        else:
+            raise ValueError(f"{self.target_feature} not supported")
+
+        # multiclass softmax
+        out = torch.softmax(out, axis=1)
+
+        return out
