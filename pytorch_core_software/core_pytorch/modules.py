@@ -4,7 +4,7 @@ import numpy as np
 import pytorch_lightning as pl
 import librosa
 from torchmetrics.classification.stat_scores import StatScores
-from transformers import AutoFeatureExtractor,AutoModelForPreTraining
+from transformers import AutoFeatureExtractor, AutoModelForPreTraining
 
 import warnings
 
@@ -46,7 +46,8 @@ class DataSet(torch.utils.data.Dataset):
                     'y': torch.from_numpy(np.asarray(label)).type('torch.LongTensor')}
         elif self.data_type == 'transform_array':
             audio, sample_rate = librosa.core.load(self.data_locs.iloc[idx])
-            audio_resampled = librosa.resample(audio, orig_sr=sample_rate, target_sr=self.feature_extractor.sampling_rate)
+            audio_resampled = librosa.resample(audio, orig_sr=sample_rate,
+                                               target_sr=self.feature_extractor.sampling_rate)
             inputs = self.feature_extractor(
                 audio_resampled, sampling_rate=self.feature_extractor.sampling_rate, max_length=16000, truncation=True,
             )
@@ -54,14 +55,12 @@ class DataSet(torch.utils.data.Dataset):
             values = inputs['input_values'][0]
             filled_array[0:len(values)] = values
 
-
             return {'x': filled_array,
                     'y': torch.from_numpy(np.asarray(label)).type('torch.LongTensor')}
         else:
             raise ValueError(f"Invalid datatype conversion. {self.data_type} not supported")
 
         # todo check that this is the right type for classification
-
 
     @staticmethod
     def mp3tomfcc(file_path):
@@ -364,7 +363,7 @@ class AudioTransformer(CnnModule):
         self.transformer_block = AutoModelForPreTraining.from_pretrained("facebook/wav2vec2-base")
 
     def forward(self, x, predict=False):
-        out = self.transformer_block(input_values={'intput_values':x})
+        out = self.transformer_block(input_values={'intput_values': x})
 
         if self.target_feature == 'Tone':
             out = self.fc_tone(out)
