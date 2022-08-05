@@ -42,7 +42,6 @@ def main(args):
                                 model_type=args.model_type)
 
 
-
     else:
         module = module()
 
